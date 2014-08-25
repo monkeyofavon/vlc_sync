@@ -3,9 +3,9 @@
 import sys
 import dbus
 import thread
+import socket
 from gi.repository import GObject
 from dbus.mainloop.glib import DBusGMainLoop
-from socket import *
 
 
 class DbusListener():
@@ -27,39 +27,28 @@ class DbusListener():
         self.iface.connect_to_signal(signal, signal_handler)
 
 
-class TcpListener():
-    def __init__(self):
-        pass
-
-
 class Socket():
-    def __init__(self, host, port):
-        self.buffer = 1
-        self.address = (host, port)
-        self.socket = socket(AF_INET, SOCK_STREAM)
-        self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        self.connect_socket = None
+    def __init__(self, address, port):
+        self.recipient = (address, port)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.bind(self.recipient)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    def listen(self):
-        self.socket.bind(self.address)
-        self.socket.listen(2)
-        print "waiting for connection... ",
-        self.connect_socket, clientaddr = self.socket.accept()
-        print "connected!"
+    def send(self, message):
+        self.socket.sendto(message, self.recipient)
+
+    def receive(self):
+        data, addr = self.socket.recvfrom(1024)
+        return data
         
-    def connect(self):
-        self.socket.connect(self.address)
-        self.connect_socket = self.socket
-        print "connected to host!"
-
     def close(self):
         self.socket.close()
 
 
 class SignalHandler():
-    def __init__(self, bus, net_connection):
+    def __init__(self, bus, socket):
         self.bus = bus
-        self.net_connection = net_connection
+        self.socket = socket
 
         self.application_listener = DbusListener(self.bus,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus')
         self.instance_listener = None
@@ -81,23 +70,18 @@ class SignalHandler():
                 print "disconnected\t'%s'" % bus_name
 
     def __handle_properties_changed(self, bus_name, message_dict, __ignore):
-        if dbus.String(u'PlaybackStatus') in message_dict.keys():
-            self.net_connection.connect_socket.sendall(message_dict[dbus.String(u'PlaybackStatus')] + '\n')
-            print "playback\t'%s'" % message_dict[dbus.String(u'PlaybackStatus')]
-
+        playback_status = dbus.String(u'PlaybackStatus')
+        if playback_status in message_dict.keys():
+            message = message_dict[playback_status]
+            sent = self.socket.send(message)
+            print "playback\t'%s'" % message
 
     def __handle_network_data(self):
         while True:
             data = ""
-            while True:
-                byte = self.net_connection.connect_socket.recv(self.net_connection.buffer)
-                if byte == '\n':
-                    print "network\t\t'%s'" % data
-                    break
-                else:
-                    data += byte
-        self.net_connection.connect_socket.close()
-        
+            data = self.socket.receive()
+            print "network\t\t'%s'" % data
+
 
 # class VlcInterface:
 #     def __init__(self, bus_name):
@@ -137,18 +121,18 @@ class SignalHandler():
 #         return 1
 
 
+def address_port(arg):
+    arg_list = arg.split(':')
+    return arg_list[0], int(arg_list[1])
+
+
 def main():
     DBusGMainLoop(set_as_default=True)
 
-    if len(sys.argv) == 3 and sys.argv[1] == '-h':
-        socket = Socket('localhost', int(sys.argv[2]))
-        socket.listen()
-        bus = dbus.SessionBus()  
-        signal_handler = SignalHandler(bus, socket)
-    elif len(sys.argv) == 4 and sys.argv[1] == '-c':
-        socket = Socket(sys.argv[2], int(sys.argv[3]))
-        socket.connect()
-        bus = dbus.SessionBus()  
+    if len(sys.argv) == 2:
+        address, port = address_port(sys.argv[1])
+        socket = Socket(address, port)
+        bus = dbus.SessionBus()
         signal_handler = SignalHandler(bus, socket)
     else:
         print "eh, try something else..."
