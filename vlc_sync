@@ -34,20 +34,23 @@ class TcpListener():
 
 class Socket():
     def __init__(self, host, port):
-        self.buffer = 1024      
+        self.buffer = 1
         self.address = (host, port)
         self.socket = socket(AF_INET, SOCK_STREAM)
+        self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.connect_socket = None
 
     def listen(self):
         self.socket.bind(self.address)
         self.socket.listen(2)
-        print "waiting for connections..."
+        print "waiting for connection... ",
         self.connect_socket, clientaddr = self.socket.accept()
+        print "connected!"
         
     def connect(self):
         self.socket.connect(self.address)
         self.connect_socket = self.socket
+        print "connected to host!"
 
     def close(self):
         self.socket.close()
@@ -72,23 +75,27 @@ class SignalHandler():
                 self.instance_listener = DbusListener(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.freedesktop.DBus.Properties')
                 self.instance_listener.connect()
                 self.instance_listener.listen('PropertiesChanged',self.__handle_properties_changed)
-                print "connected\t", bus_name
+                print "connected\t'%s'" % bus_name
             elif self.instance_listener.bus_name == bus_name and disconnect_id:
                 self.instance_listener = None
-                print "disconnected\t", bus_name
+                print "disconnected\t'%s'" % bus_name
 
     def __handle_properties_changed(self, bus_name, message_dict, __ignore):
-        if dbus.String(u'PlaybackStatus') in message_dict.keys(): 
-            print "playback\t", message_dict[dbus.String(u'PlaybackStatus')]
+        if dbus.String(u'PlaybackStatus') in message_dict.keys():
+            self.net_connection.connect_socket.sendall(message_dict[dbus.String(u'PlaybackStatus')] + '\n')
+            print "playback\t'%s'" % message_dict[dbus.String(u'PlaybackStatus')]
 
 
     def __handle_network_data(self):
         while True:
-            data = self.net_connection.connect_socket.recv(self.net_connection.buffer)
-            if not data:
-                break
-            else:
-                print "network\t", data
+            data = ""
+            while True:
+                byte = self.net_connection.connect_socket.recv(self.net_connection.buffer)
+                if byte == '\n':
+                    print "network\t\t'%s'" % data
+                    break
+                else:
+                    data += byte
         self.net_connection.connect_socket.close()
         
 
