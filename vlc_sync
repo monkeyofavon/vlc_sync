@@ -31,14 +31,14 @@ class Socket():
     def __init__(self, address, port):
         self.recipient = (address, port)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind(('127.0.0.1', port))
+        self.socket.bind(('', port))
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def send(self, message):
-        self.socket.sendto(message, self.recipient)
+        self.socket.sendto(bytes(message), self.recipient)
 
     def receive(self):
-        data, addr = self.socket.recvfrom(1024)
+        data, addr = self.socket.recvfrom(1)
         return data
         
     def close(self):
@@ -78,9 +78,8 @@ class SignalHandler():
 
     def __handle_network_data(self):
         while True:
-            data = ""
             data = self.socket.receive()
-            print "network\t\t'%s'" % data
+            print "network\t\t'%s'" % str(data)
 
 
 # class VlcInterface:
