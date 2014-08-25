@@ -1,8 +1,11 @@
 #! /usr/bin/python
 
+import sys
 import dbus
+import thread
 from gi.repository import GObject
 from dbus.mainloop.glib import DBusGMainLoop
+from socket import *
 
 
 class DbusListener():
@@ -29,39 +32,46 @@ class TcpListener():
         pass
 
 
-class Server():
-    def __init__(self):
-        pass
+class Socket():
+    def __init__(self, host, port):
+        self.buffer = 1024      
+        self.address = (host, port)
+        self.socket = socket(AF_INET, SOCK_STREAM)
+        self.connect_socket = None
 
+    def listen(self):
+        self.socket.bind(self.address)
+        self.socket.listen(2)
+        print "waiting for connections..."
+        self.connect_socket, clientaddr = self.socket.accept()
+        
+    def connect(self):
+        self.socket.connect(self.address)
+        self.connect_socket = self.socket
 
-class Client():
-    def __init__(self):
-        pass
+    def close(self):
+        self.socket.close()
 
 
 class SignalHandler():
-    def __init__(self):
-        self.bus = dbus.SessionBus()
+    def __init__(self, bus, net_connection):
+        self.bus = bus
+        self.net_connection = net_connection
 
-        self.application_listener = DbusListener(self.bus, 
-                                                 'org.freedesktop.DBus', 
-                                                 '/org/freedesktop/DBus', 
-                                                 'org.freedesktop.DBus')
-        self.instance_listener = None      
+        self.application_listener = DbusListener(self.bus,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus')
+        self.instance_listener = None
 
         self.application_listener.connect()
-        self.application_listener.listen('NameOwnerChanged', 
-                                         self.__handle_name_owner_changed)
+        self.application_listener.listen('NameOwnerChanged',self.__handle_name_owner_changed)
+
+        thread.start_new_thread(self.__handle_network_data, ())
 
     def __handle_name_owner_changed(self, bus_name, disconnect_id, connect_id):
         if 'org.mpris.MediaPlayer2.vlc-' in bus_name:
             if not self.instance_listener and connect_id:
-                self.instance_listener = DbusListener(self.bus, bus_name,
-                                                      '/org/mpris/MediaPlayer2',
-                                                      'org.freedesktop.DBus.Properties')
+                self.instance_listener = DbusListener(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.freedesktop.DBus.Properties')
                 self.instance_listener.connect()
-                self.instance_listener.listen('PropertiesChanged',
-                                              self.__handle_properties_changed)
+                self.instance_listener.listen('PropertiesChanged',self.__handle_properties_changed)
                 print "connected\t", bus_name
             elif self.instance_listener.bus_name == bus_name and disconnect_id:
                 self.instance_listener = None
@@ -71,6 +81,16 @@ class SignalHandler():
         if dbus.String(u'PlaybackStatus') in message_dict.keys(): 
             print "playback\t", message_dict[dbus.String(u'PlaybackStatus')]
 
+
+    def __handle_network_data(self):
+        while True:
+            data = self.net_connection.connect_socket.recv(self.net_connection.buffer)
+            if not data:
+                break
+            else:
+                print "network\t", data
+        self.net_connection.connect_socket.close()
+        
 
 # class VlcInterface:
 #     def __init__(self, bus_name):
@@ -109,11 +129,24 @@ class SignalHandler():
 #             return 0
 #         return 1
 
+
 def main():
     DBusGMainLoop(set_as_default=True)
 
-    signal_handler = SignalHandler()
-    
+    if len(sys.argv) == 3 and sys.argv[1] == '-h':
+        socket = Socket('localhost', int(sys.argv[2]))
+        socket.listen()
+        bus = dbus.SessionBus()  
+        signal_handler = SignalHandler(bus, socket)
+    elif len(sys.argv) == 4 and sys.argv[1] == '-c':
+        socket = Socket(sys.argv[2], int(sys.argv[3]))
+        socket.connect()
+        bus = dbus.SessionBus()  
+        signal_handler = SignalHandler(bus, socket)
+    else:
+        print "eh, try something else..."
+        exit(0)
+
     mainloop = GObject.MainLoop()
     mainloop.run()
 
