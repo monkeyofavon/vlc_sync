@@ -99,13 +99,13 @@ class SignalHandler():
         return True
 
     def __get_track_id(self):
-        metadata = self.properties_iface.Get(self.player_iface_name, 'Metadata')
+        metadata = self.properties_iface.Get(self.player_iface.iface_name, 'Metadata')
         return metadata[dbus.String(u'mpris:trackid')]
  
     def jump_to(self, position):
         try:
             track_id = self.__get_track_id()
-            self.player_iface.SetPosition(track_id, position)
+            self.player_iface.iface.SetPosition(track_id, position)
         except:
             return 0
         return 1
