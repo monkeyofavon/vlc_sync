@@ -105,9 +105,7 @@ class SignalHandler():
         return metadata[dbus.String(u'mpris:trackid')]
  
     def __get_position(self):
-        print "yep"
         iface_name = self.player_iface.iface_name
-        print iface_name
         position = self.properties_iface.iface.Get(iface_name, 'Position')
         return int(position)
 
@@ -115,7 +113,6 @@ class SignalHandler():
         try:
             offset = 1000000
             current_position = self.__get_position()
-            print current_position, position
             if position < current_position - offset or position > current_position + offset:
                 track_id = self.__get_track_id()
                 self.player_iface.iface.SetPosition(track_id, position)
