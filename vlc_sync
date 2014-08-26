@@ -103,21 +103,21 @@ class SignalHandler():
     
     def play(self):
         try:
-            self.player_iface.Play()
+            self.player_iface.iface.Play()
         except:
             return 0
         return 1
 
     def pause(self):
         try:
-            self.player_iface.Pause()
+            self.player_iface.iface.Pause()
         except:
             return 0
         return 1
 
     def stop(self):
         try:
-            self.player_iface.Stop()
+            self.player_iface.iface.Stop()
         except:
             return 0
         return 1
