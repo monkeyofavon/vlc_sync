@@ -94,12 +94,14 @@ class SignalHandler():
         elif message == 'Stopped':
             self.stop()
         elif 'Seeked' in message:
-            self.jump_to(int(message.split(':')[1]))
+            position = int(message.split(':')[1])
+            self.jump_to(position)
         print "network\t\t'%s'" % message
         return True
 
     def __get_track_id(self):
-        metadata = self.properties_iface.Get(self.player_iface.iface_name, 'Metadata')
+        iface_name = self.player_iface.iface_name
+        metadata = self.properties_iface.iface.Get(iface_name, 'Metadata')
         return metadata[dbus.String(u'mpris:trackid')]
  
     def jump_to(self, position):
