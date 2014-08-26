@@ -66,9 +66,11 @@ class SignalHandler():
                 self.properties_iface.connect()
                 self.player_iface.connect()
                 self.properties_iface.listen('PropertiesChanged', self.__handle_properties_changed)
+                self.player_iface.listen('Seeked', self.__handle_seeked)
                 print "connected\t'%s'" % bus_name
             elif self.properties_iface and disconnect_id and self.properties_iface.bus_name == bus_name:
                 self.properties_iface = None
+                self.player_iface = None
                 print "disconnected\t'%s'" % bus_name
 
     def __handle_properties_changed(self, bus_name, message_dict, __ignore):
@@ -78,6 +80,11 @@ class SignalHandler():
             self.socket.send(message)
             print "playback\t'%s'" % message
 
+    def __handle_seeked(self, position):
+        message = "Seeked:" + str(position)
+        self.socket.send(message)
+        print "seeked\t\t'%s'" % message
+
     def __handle_network_data(self, socket, wat):
         message = str(self.socket.receive())
         if message == 'Playing':
@@ -86,6 +93,8 @@ class SignalHandler():
             self.pause()
         elif message == 'Stopped':
             self.stop()
+        elif 'Seeked' in message:
+            self.jump_to(int(message.split(':')[1]))
         print "network\t\t'%s'" % message
         return True
 
