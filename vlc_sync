@@ -8,7 +8,7 @@ from gi.repository import GObject
 from dbus.mainloop.glib import DBusGMainLoop
 
 
-class DbusListener():
+class DbusIface():
     def __init__(self, bus, bus_name, object_path, iface_name):
         self.bus_name = bus_name
         self.object_path = object_path
@@ -21,7 +21,6 @@ class DbusListener():
     def connect(self):
         self.proxy = self.bus.get_object(self.bus_name, self.object_path)
         self.iface = dbus.Interface(self.proxy, dbus_interface = self.iface_name)
-        self.properties_iface = dbus.Interface(self.proxy, dbus_interface = self.iface_name)
 
     def listen(self, signal, signal_handler):
         self.iface.connect_to_signal(signal, signal_handler)
@@ -38,7 +37,7 @@ class Socket():
         self.socket.sendto(bytes(message), self.recipient)
 
     def receive(self):
-        data, addr = self.socket.recvfrom(1)
+        data, addr = self.socket.recvfrom(1024)
         return data
         
     def close(self):
@@ -50,80 +49,83 @@ class SignalHandler():
         self.bus = bus
         self.socket = socket
 
-        self.application_listener = DbusListener(self.bus,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus')
-        self.instance_listener = None
+        self.application_iface = DbusIface(self.bus,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus')
+        self.properties_iface = None
+        self.player_iface = None
 
-        self.application_listener.connect()
-        self.application_listener.listen('NameOwnerChanged',self.__handle_name_owner_changed)
+        GObject.io_add_watch(self.socket.socket, GObject.IO_IN, self.__handle_network_data)
 
-        thread.start_new_thread(self.__handle_network_data, ())
+        self.application_iface.connect()
+        self.application_iface.listen('NameOwnerChanged', self.__handle_name_owner_changed)
 
     def __handle_name_owner_changed(self, bus_name, disconnect_id, connect_id):
         if 'org.mpris.MediaPlayer2.vlc-' in bus_name:
-            if not self.instance_listener and connect_id:
-                self.instance_listener = DbusListener(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.freedesktop.DBus.Properties')
-                self.instance_listener.connect()
-                self.instance_listener.listen('PropertiesChanged',self.__handle_properties_changed)
+            if not self.properties_iface and connect_id:
+                self.properties_iface = DbusIface(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.freedesktop.DBus.Properties')
+                self.player_iface = DbusIface(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.mpris.MediaPlayer2.Player')
+                self.properties_iface.connect()
+                self.player_iface.connect()
+                self.properties_iface.listen('PropertiesChanged', self.__handle_properties_changed)
                 print "connected\t'%s'" % bus_name
-            elif self.instance_listener.bus_name == bus_name and disconnect_id:
-                self.instance_listener = None
+            elif self.properties_iface and disconnect_id and self.properties_iface.bus_name == bus_name:
+                self.properties_iface = None
                 print "disconnected\t'%s'" % bus_name
 
     def __handle_properties_changed(self, bus_name, message_dict, __ignore):
         playback_status = dbus.String(u'PlaybackStatus')
         if playback_status in message_dict.keys():
             message = message_dict[playback_status]
-            sent = self.socket.send(message)
+            self.socket.send(message)
             print "playback\t'%s'" % message
 
-    def __handle_network_data(self):
-        while True:
-            data = self.socket.receive()
-            print "network\t\t'%s'" % str(data)
+    def __handle_network_data(self, socket, wat):
+        message = str(self.socket.receive())
+        if message == 'Playing':
+            self.play()
+        elif message == 'Paused':
+            self.pause()
+        elif message == 'Stopped':
+            self.stop()
+        print "network\t\t'%s'" % message
+        return True
 
-
-# class VlcInterface:
-#     def __init__(self, bus_name):
-#         pass
-        
-#     def __get_track_id(self):
-#         metadata = self.properties_iface.Get(self.player_iface_name, 'Metadata')
-#         return metadata[dbus.String(u'mpris:trackid')]
+    def __get_track_id(self):
+        metadata = self.properties_iface.Get(self.player_iface_name, 'Metadata')
+        return metadata[dbus.String(u'mpris:trackid')]
  
-#     def jump_to(self, position):
-#         try:
-#             track_id = self.__get_track_id()
-#             self.player_iface.SetPosition(track_id, position)
-#         except:
-#             return 0
-#         return 1
+    def jump_to(self, position):
+        try:
+            track_id = self.__get_track_id()
+            self.player_iface.SetPosition(track_id, position)
+        except:
+            return 0
+        return 1
+    
+    def play(self):
+        try:
+            self.player_iface.Play()
+        except:
+            return 0
+        return 1
 
-#     def play(self):
-#         try:
-#             self.player_iface.Play()
-#         except:
-#             return 0
-#         return 1
+    def pause(self):
+        try:
+            self.player_iface.Pause()
+        except:
+            return 0
+        return 1
 
-#     def pause(self):
-#         try:
-#             self.player_iface.Pause()
-#         except:
-#             return 0
-#         return 1
-
-#     def stop(self):
-#         try:
-#             self.player_iface.Stop()
-#         except:
-#             return 0
-#         return 1
+    def stop(self):
+        try:
+            self.player_iface.Stop()
+        except:
+            return 0
+        return 1
 
 
 def address_port(arg):
     arg_list = arg.split(':')
     return arg_list[0], int(arg_list[1])
-
 
 def main():
     DBusGMainLoop(set_as_default=True)
