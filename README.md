@@ -15,6 +15,5 @@ Run vlc_sync
 
 Make sure that the file is executable (`~$ chmod +x vlc_sync`) then to run:
 
-`~$ vlc_sync IP:PORT`
+`~$ vlc_sync [OPTION] TARGET_ADDRESS`
 
-Where `IP` is the target IP and `PORT` is the port you and your target want to listen to. (Will add more options to this.) The script is using the UDP protocol, so no connection is necessary. Just plug and play...
