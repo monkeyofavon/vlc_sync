@@ -13,7 +13,5 @@ To use this you want to make sure that your version of VLC is connected to the D
 Run vlc_sync
 ------------
 
-Make sure that the file is executable (`~$ chmod +x vlc_sync`) then to run:
-
-`~$ vlc_sync [OPTION] TARGET_ADDRESS`
+Make sure that the file is executable (`~$ chmod +x vlc_sync`) then, to run: `~$ vlc_sync [OPTION] TARGET_ADDRESS`
 
