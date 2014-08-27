@@ -1,5 +1,6 @@
 #! /usr/bin/python
 
+
 import sys
 import dbus
 import socket
@@ -36,8 +37,7 @@ class Socket():
         self.socket.sendto(bytes(message), self.recipient)
 
     def receive(self):
-        data, addr = self.socket.recvfrom(1024)
-        return data
+        return self.socket.recvfrom(1024)
         
     def close(self):
         self.socket.close()
@@ -85,17 +85,18 @@ class SignalHandler():
         print "playback\t'%s'" % message
 
     def __handle_network_data(self, socket, wat):
-        message = str(self.socket.receive())
-        if message == 'Playing':
-            self.play()
-        elif message == 'Paused':
-            self.pause()
-        elif message == 'Stopped':
-            self.stop()
-        elif 'Seeked' in message:
-            position = int(message.split(':')[1])
-            self.jump_to(position)
-        print "network\t\t'%s'" % message
+        message, address = self.socket.receive()
+        if self.socket.recipient == address:
+            if message == 'Playing':
+                self.play()
+            elif message == 'Paused':
+                self.pause()
+            elif message == 'Stopped':
+                self.stop()
+            elif 'Seeked' in message:
+                position = int(message.split(':')[1])
+                self.jump_to(position)
+            print "network\t\t'%s'" % message
         return True
 
     def __get_track_id(self):
