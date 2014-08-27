@@ -3,6 +3,7 @@
 
 import sys
 import dbus
+import getopt
 import socket
 from gi.repository import GObject
 from dbus.mainloop.glib import DBusGMainLoop
@@ -27,10 +28,10 @@ class DbusIface():
 
 
 class Socket():
-    def __init__(self, address, port):
+    def __init__(self, host_port, address, port):
         self.recipient = (address, port)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind(('', port))
+        self.socket.bind(('', host_port))
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def send(self, message):
@@ -142,21 +143,71 @@ class SignalHandler():
         return 1
 
 
-def address_port(arg):
-    arg_list = arg.split(':')
-    return arg_list[0], int(arg_list[1])
+def print_help():
+    print "usage: vlc_sync [OPTION] TARGET_ADDRESS"
+    print "  -h PORT\tport to host this session on (defaults to 8989)"
+    print "  -p PORT\tport to communicate with (defaults to 8989)"
+    print "  --help\tprint this helpful message"
 
 def main():
     DBusGMainLoop(set_as_default=True)
 
-    if len(sys.argv) == 2:
-        address, port = address_port(sys.argv[1])
-        socket = Socket(address, port)
-        bus = dbus.SessionBus()
-        signal_handler = SignalHandler(bus, socket)
+    port = 8989
+    host_port = port
+    address = None
+
+    try:
+        options, args = getopt.getopt(sys.argv[1:], 'h:p:', ["help"])
+    except getopt.GetoptError as err:
+        print err
+        print_help()
+        exit(1)
+        
+    for option, argument in options:
+        if option == "--help":
+            print_help()
+            exit(1)
+        elif option == "-h":
+            try:
+                host_port = int(argument)
+            except ValueError:
+                print "'%s' is not a valid port" % argument
+                print_help()
+                exit(1)
+        elif option == "-p":
+            try:
+                port = int(argument)
+            except ValueError:
+                print "'%s' is not a valid port" % argument
+                print_help()
+                exit(1)
+        else:
+            print "invalid option '%s %s'" % option, argument
+            print_help()
+            exit(1)
+
+    if len(args) == 1:
+        address = args[0]
+    elif len(args) == 0:
+        print "you need to supply a target address"
+        print_help()
+        exit(1)
     else:
-        print "eh, try something else..."
-        exit(0)
+        print "invalid argument(s):",
+        for argument in args:
+            print argument,
+        print ""
+        print_help()
+        exit(1)
+
+    try:
+        socket = Socket(host_port, address, port)
+    except:
+        print "can't open a socket with these arguments"
+        exit(1)
+
+    bus = dbus.SessionBus()
+    signal_handler = SignalHandler(bus, socket)
 
     mainloop = GObject.MainLoop()
     mainloop.run()
