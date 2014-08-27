@@ -59,7 +59,7 @@ class SignalHandler():
         self.application_iface.listen('NameOwnerChanged', self.__handle_name_owner_changed)
 
     def __handle_name_owner_changed(self, bus_name, disconnect_id, connect_id):
-        if 'org.mpris.MediaPlayer2.vlc-' in bus_name:
+        if 'org.mpris.MediaPlayer2.vlc' in bus_name and len(bus_name) > 26:
             if not self.properties_iface and connect_id:
                 self.properties_iface = DbusIface(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.freedesktop.DBus.Properties')
                 self.player_iface = DbusIface(self.bus, bus_name,'/org/mpris/MediaPlayer2','org.mpris.MediaPlayer2.Player')
